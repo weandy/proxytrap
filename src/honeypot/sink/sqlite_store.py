@@ -440,7 +440,13 @@ class SqliteStore:
             "credentials": creds,
         }
 
-    def top_credentials(self, limit: int = 100) -> list[dict[str, Any]]:
+    def top_credentials(
+        self,
+        limit: int = 100,
+        *,
+        port: int | None = None,
+        protocol: str | None = None,
+    ) -> list[dict[str, Any]]:
         rows = self.query(
             """
             SELECT username, password, hit_count, first_seen, last_seen,
@@ -449,9 +455,49 @@ class SqliteStore:
             ORDER BY hit_count DESC, last_seen DESC
             LIMIT ?
             """,
-            (limit,),
+            (max(limit * 20, limit) if (port is not None or protocol) else limit,),
         )
-        return [dict(r) for r in rows]
+        out: list[dict[str, Any]] = []
+        for r in rows:
+            d = dict(r)
+            if port is not None:
+                ports = json.loads(d.get("ports_json") or "{}")
+                if str(port) not in ports:
+                    continue
+            if protocol:
+                protos = json.loads(d.get("protocols_json") or "{}")
+                if protocol not in protos:
+                    continue
+            out.append(d)
+            if len(out) >= limit:
+                break
+        return out
+
+    def clear_analytics(self) -> None:
+        """Drop event-derived tables; keep ports + meta for reindex."""
+        with self._lock:
+            self._conn.execute("DELETE FROM events")
+            self._conn.execute("DELETE FROM credentials")
+            self._conn.execute("DELETE FROM sources")
+            self._conn.execute("DELETE FROM port_stats_daily")
+            self._conn.commit()
+
+    def delete_events_before(self, cutoff_ts: str) -> int:
+        with self._lock:
+            cur = self._conn.execute("DELETE FROM events WHERE ts < ?", (cutoff_ts,))
+            self._conn.commit()
+            return int(cur.rowcount or 0)
+
+    def last_auth_ts(self) -> str | None:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT ts FROM events WHERE event_type='auth' ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+        return str(row["ts"]) if row else None
+
+    def event_count(self) -> int:
+        with self._lock:
+            return int(self._conn.execute("SELECT COUNT(*) AS c FROM events").fetchone()["c"])
 
     def recent_events(self, limit: int = 100, event_type: str | None = None) -> list[dict[str, Any]]:
         if event_type:

@@ -10,8 +10,10 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
+from honeypot import __version__
 from honeypot.config import Settings
 from honeypot.limits import ConnectionLimiter
+from honeypot.ops import disk_usage_report
 from honeypot.port_manager import PortManager
 from honeypot.server import HoneypotServer
 from honeypot.sink.pipeline import EventPipeline
@@ -188,6 +190,31 @@ def create_app(
             },
         )
 
+    @app.get("/system", response_class=HTMLResponse)
+    async def system_page(request: Request) -> Any:
+        if not logged_in(request):
+            return RedirectResponse("/login", status_code=302)
+        disk = disk_usage_report(settings.data_dir)
+        return templates.TemplateResponse(
+            request,
+            "system.html",
+            {
+                "user": request.session.get("user"),
+                "disk": disk,
+                "pipeline": pipeline.stats(),
+                "limiter": limiter.snapshot(),
+                "listening": server.listening_ports(),
+                "auth_mode": settings.effective_auth_mode.value,
+                "events_retention_days": settings.events_retention_days,
+                "jsonl_retention_days": settings.jsonl_retention_days,
+                "auth_stale_warn_hours": settings.auth_stale_warn_hours,
+                "auto_export_hours": settings.auto_export_hours,
+                "event_count": store.event_count(),
+                "last_auth": store.last_auth_ts(),
+                "version": __version__,
+            },
+        )
+
     @app.post("/ports/add")
     async def ports_add(
         request: Request,
@@ -298,20 +325,49 @@ def create_app(
         except Exception as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
+    @app.get("/healthz")
+    async def healthz() -> Any:
+        """Unauthenticated liveness for systemd/load balancers — no secrets."""
+        return {
+            "status": "ok",
+            "listening": len(server.listening_ports()),
+            "version": __version__,
+        }
+
+    @app.get("/api/health")
+    async def api_health(request: Request) -> Any:
+        require_login(request)
+        return {
+            "status": "ok",
+            "pipeline": pipeline.stats(),
+            "limiter": limiter.snapshot(),
+            "listening": server.listening_ports(),
+            "last_auth": store.last_auth_ts(),
+            "event_count": store.event_count(),
+        }
+
     @app.get("/api/system")
     async def api_system(request: Request) -> Any:
         require_login(request)
-        raw_dir = settings.data_dir / "raw"
-        raw_files = sorted(raw_dir.glob("events-*.jsonl")) if raw_dir.exists() else []
+        disk = disk_usage_report(settings.data_dir)
         return {
             "data_dir": str(settings.data_dir),
             "sqlite": str(settings.sqlite_path),
             "auth_mode": settings.effective_auth_mode.value,
-            "jsonl_files": [p.name for p in raw_files[-14:]],
+            "disk": disk,
+            "jsonl_files": disk.get("jsonl_files", []),
             "pipeline": pipeline.stats(),
             "limiter": limiter.snapshot(),
             "listening": server.listening_ports(),
-            "version": "0.1.0",
+            "retention": {
+                "events_days": settings.events_retention_days,
+                "jsonl_days": settings.jsonl_retention_days,
+                "auth_stale_warn_hours": settings.auth_stale_warn_hours,
+                "auto_export_hours": settings.auto_export_hours,
+            },
+            "event_count": store.event_count(),
+            "last_auth": store.last_auth_ts(),
+            "version": __version__,
         }
 
     @app.exception_handler(HTTPException)

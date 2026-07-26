@@ -1,81 +1,122 @@
-# Proxy Auth Honeypot (miguan)
+# Proxy Auth Honeypot
 
-SOCKS5 / HTTP 代理 **认证蜜罐**：采集爆破账密，JSONL + SQLite 存储，Web Session 观测与动态端口管理。
+SOCKS5 / HTTP **proxy authentication honeypot** for collecting real-world brute-force credentials.
 
-**永不转发流量（禁止开放代理 / L3）。**
+Persists events to **daily JSONL** + **SQLite** aggregates, optional **Web UI** (Session login), **dynamic ports**, credential **export**, and Phase-3 ops (retention, reindex, backup, health).
 
-## 文档
+**Never forwards traffic. Not an open proxy. L3 is intentionally unsupported.**
 
-| 文档 | 说明 |
-|------|------|
-| [docs/requirements.md](docs/requirements.md) | 需求冻结 |
-| [docs/architecture.md](docs/architecture.md) | 整体架构 |
-| [docs/phases/README.md](docs/phases/README.md) | 阶段总览 |
-| [docs/phases/phase1-collect.md](docs/phases/phase1-collect.md) | Phase 1 可采数 |
-| [docs/phases/phase2-web.md](docs/phases/phase2-web.md) | Phase 2 Web |
-| [docs/phases/phase3-ops.md](docs/phases/phase3-ops.md) | Phase 3 运营 |
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-## 快速开始
+## Features
+
+| Area | What you get |
+|------|----------------|
+| Protocols | SOCKS5 (RFC1929 user/pass), HTTP proxy (407 + Basic, CONNECT marked) |
+| Deception | L1 `always_fail` (default); L2 `accept_then_fail` (auth “ok”, CONNECT fails, no dial) |
+| Storage | `data/raw/events-YYYY-MM-DD.jsonl` + `data/honeypot.db` |
+| Web | Dashboard, credentials, sources, events, ports, **system/disk** |
+| Ops | Retention, `reindex`, `disk`, auto daily export, stale-auth warning, `/healthz` |
+| Deploy | `deploy/proxy-honeypot.service`, `scripts/backup.sh` / `.ps1` |
+
+## Quick start (dev)
 
 ```bash
-cd miguan
 python -m venv .venv
-# Windows
-.venv\Scripts\activate
-# Linux
-# source .venv/bin/activate
+# Windows: .venv\Scripts\activate
+# Linux:   source .venv/bin/activate
 
 pip install -e ".[dev]"
-copy .env.example .env   # 并修改 WEB_PASSWORD / WEB_SESSION_SECRET
+cp .env.example .env   # set WEB_PASSWORD and WEB_SESSION_SECRET
 
-# 建议先用少量端口测试：可编辑 config 或仅开 Web 后在页面加端口
-set DATA_DIR=./data
-set CONFIG_PATH=./config/config.example.yaml
-set WEB_ENABLED=true
-set WEB_BIND=127.0.0.1:8787
-set WEB_AUTH_USER=admin
-set WEB_PASSWORD=please-change-me
-set WEB_SESSION_SECRET=please-change-session-secret
+export DATA_DIR=./data
+export CONFIG_PATH=./config/config.example.yaml
+export WEB_ENABLED=true
+export WEB_BIND=127.0.0.1:8787
+export WEB_AUTH_USER=admin
+export WEB_PASSWORD=please-change-me
+export WEB_SESSION_SECRET=please-change-session-secret
 
 python -m honeypot run
 ```
 
-浏览器打开 `http://127.0.0.1:8787`，登录后查看 Dashboard / Credentials / Ports。
-
-导出密码本：
+Open `http://127.0.0.1:8787` → login → Dashboard / Credentials / Ports / System.
 
 ```bash
 python -m honeypot export --top 1000 --format userpass -o data/exports/wordlist.txt
-```
-
-## 环境变量
-
-见 [.env.example](.env.example)。密钥不要提交仓库。
-
-## 验证
-
-```bash
+python -m honeypot export --port 1080 --protocol socks5
+python -m honeypot reindex
+python -m honeypot disk
 pytest -q
-python -m honeypot --help
 ```
 
-## 安全说明
+## Production deploy
 
-- 认证默认 `always_fail`，可选 `accept_then_fail`（假成功后业务失败，仍不出站）
-- Web 当前可不启用 TLS（公网明文有风险，自行权衡）
-- 云主机请限制 SSH 来源；蜜罐端口可对公网开放
-- 本服务 **不能** 作为可用代理上网
+See **[deploy/README.md](deploy/README.md)** and **[docs/deploy-cloud.md](docs/deploy-cloud.md)**.
 
-## 相关开源思路（参考，非 fork）
+Short path:
 
-| 项目 | 可借鉴点 |
-|------|----------|
-| [qeeqbox/honeypots](https://github.com/qeeqbox/honeypots) | 多协议低交互监听，含 socks5 / httpproxy |
-| [johnnykv/heralding](https://github.com/johnnykv/heralding) | 以抓认证凭证为核心，不做真实业务后端 |
-| [bjeborn/basic-auth-pot](https://github.com/bjeborn/basic-auth-pot) | 用挑战响应诱导 Basic 账密 |
+1. Install into `/opt/proxy-honeypot` with venv + `pip install -e .`
+2. Configure `.env` (`DATA_DIR`, strong `WEB_*` secrets; prefer `WEB_BIND=127.0.0.1:8787`)
+3. Install `deploy/proxy-honeypot.service` → `systemctl enable --now proxy-honeypot`
+4. Open honeypot ports on the security group; **restrict Web and SSH**
+5. Cron or manual: `scripts/backup.sh`
 
-本项目对齐其「走完认证路径并记录」的思路，**明确不做** 开放代理 / 流量转发（L3）。
+## CLI
 
-## 许可与用途
+| Command | Purpose |
+|---------|---------|
+| `honeypot run` | Start listeners + optional Web + maintenance loop |
+| `honeypot export` | Wordlist from SQLite (`--format`, `--port`, `--protocol`) |
+| `honeypot reindex` | Rebuild SQLite from JSONL (source of truth) |
+| `honeypot disk` | Print data-dir usage |
 
-仅用于自有主机上的防御性观测与密码本情报收集。勿用于攻击他人服务。
+## Configuration
+
+- **Env**: [.env.example](.env.example) — secrets, retention, Web bind, `AUTH_MODE`
+- **Ports / deception YAML**: [config/config.example.yaml](config/config.example.yaml)
+
+| Env | Meaning |
+|-----|---------|
+| `AUTH_MODE` | `always_fail` \| `accept_then_fail` |
+| `EVENTS_RETENTION_DAYS` | Purge SQLite `events` older than N days (`0`=off) |
+| `JSONL_RETENTION_DAYS` | Delete old `events-*.jsonl` (`0`=off) |
+| `AUTH_STALE_WARN_HOURS` | Log warning if no auth for N hours |
+| `AUTO_EXPORT_HOURS` | Enable daily export to `data/exports/daily-YYYY-MM-DD.txt` when &gt;0 |
+
+## L2 vs L3
+
+| Mode | Behavior | Use |
+|------|----------|-----|
+| L1 `always_fail` | Auth always fails | Default; best for sustained dictionary dumps |
+| L2 `accept_then_fail` | Auth success, then CONNECT/business fails | Optional experiment; still **no outbound** |
+| L3 forward | Real proxy | **Not implemented / forbidden** |
+
+## Documentation
+
+| Doc | Content |
+|-----|---------|
+| [docs/requirements.md](docs/requirements.md) | Requirements freeze |
+| [docs/architecture.md](docs/architecture.md) | Architecture |
+| [docs/phases/](docs/phases/) | Phase 1–3 status |
+| [docs/deploy-cloud.md](docs/deploy-cloud.md) | Cloud SG + abuse FAQ |
+| [deploy/README.md](deploy/README.md) | systemd install |
+
+## Related projects (inspiration only)
+
+| Project | Idea borrowed |
+|---------|----------------|
+| [qeeqbox/honeypots](https://github.com/qeeqbox/honeypots) | Multi-protocol low-interaction listeners |
+| [johnnykv/heralding](https://github.com/johnnykv/heralding) | Credential-catching focus |
+| [bjeborn/basic-auth-pot](https://github.com/bjeborn/basic-auth-pot) | Challenge clients for Basic auth |
+
+## Security / legal
+
+- Deploy only on hosts you control.
+- Captured passwords are attacker-submitted probe data — do not use them to attack third parties.
+- Public Web without TLS is a known tradeoff; prefer localhost + tunnel or reverse proxy TLS.
+- MIT License — see [LICENSE](LICENSE).
+
+## License
+
+MIT — see [LICENSE](LICENSE).

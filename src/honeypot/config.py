@@ -100,6 +100,13 @@ class Settings(BaseSettings):
 
     log_level: str = Field(default="info", validation_alias="LOG_LEVEL")
 
+    # Phase 3 retention / ops (0 = disabled)
+    events_retention_days: int = Field(default=90, validation_alias="EVENTS_RETENTION_DAYS")
+    jsonl_retention_days: int = Field(default=180, validation_alias="JSONL_RETENTION_DAYS")
+    auth_stale_warn_hours: float = Field(default=24.0, validation_alias="AUTH_STALE_WARN_HOURS")
+    auto_export_hours: float = Field(default=24.0, validation_alias="AUTO_EXPORT_HOURS")
+    maintenance_interval_sec: float = Field(default=3600.0, validation_alias="MAINTENANCE_INTERVAL_SEC")
+
     # Filled after load_yaml
     yaml_config: YamlFileConfig = Field(default_factory=YamlFileConfig)
 

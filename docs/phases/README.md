@@ -5,7 +5,7 @@
 | Phase 0 | 文档与骨架 | 架构、阶段拆分、仓库结构、依赖 | 本目录 + `../architecture.md` |
 | Phase 1 | 可采数 | 多端口蜜罐 L1、JSONL+SQLite、限连、CLI | [phase1-collect.md](./phase1-collect.md) |
 | Phase 2 | 可观测 | Web Session、看板、动态端口、导出 | [phase2-web.md](./phase2-web.md) |
-| Phase 3 | 长期运营 | L2 开关打磨、轮转备份、告警、reindex | [phase3-ops.md](./phase3-ops.md) |
+| Phase 3 | 长期运营 | L2、保留策略、备份、告警、reindex、systemd（**已完成**） | [phase3-ops.md](./phase3-ops.md) |
 
 ## 依赖关系
 

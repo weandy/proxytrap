@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}System · Proxy Honeypot{% endblock %}
+{% block content %}
+<h1>System</h1>
+<div class="cards">
+  <div class="card"><div class="label">Version</div><div class="value" style="font-size:1rem">{{ version }}</div></div>
+  <div class="card"><div class="label">Auth mode</div><div class="value" style="font-size:1rem">{{ auth_mode }}</div></div>
+  <div class="card"><div class="label">Events in DB</div><div class="value">{{ event_count }}</div></div>
+  <div class="card"><div class="label">Last auth</div><div class="value" style="font-size:0.85rem">{{ last_auth or '—' }}</div></div>
+  <div class="card"><div class="label">Queue / written / dropped</div><div class="value" style="font-size:1rem">{{ pipeline.queue_size }} / {{ pipeline.written }} / {{ pipeline.dropped }}</div></div>
+  <div class="card"><div class="label">Live conns</div><div class="value">{{ limiter.global }}</div></div>
+</div>
+
+<h2>Disk</h2>
+<table>
+  <tbody>
+    <tr><td class="muted">Data dir</td><td><code>{{ disk.data_dir }}</code></td></tr>
+    <tr><td class="muted">Total data</td><td>{{ disk.data_dir_human }}</td></tr>
+    <tr><td class="muted">JSONL (raw)</td><td>{{ disk.raw_human }} · {{ disk.jsonl_file_count }} files</td></tr>
+    <tr><td class="muted">SQLite</td><td>{{ disk.sqlite_human }}</td></tr>
+    <tr><td class="muted">Exports</td><td>{{ disk.exports_human }}</td></tr>
+    <tr><td class="muted">Volume free</td><td>{{ disk.disk_free_human }}</td></tr>
+  </tbody>
+</table>
+
+<h2 style="margin-top:1.5rem">Retention / ops</h2>
+<table>
+  <tbody>
+    <tr><td class="muted">Events retention</td><td>{{ events_retention_days }} days (0=off)</td></tr>
+    <tr><td class="muted">JSONL retention</td><td>{{ jsonl_retention_days }} days (0=off)</td></tr>
+    <tr><td class="muted">Stale auth warn</td><td>{{ auth_stale_warn_hours }} hours (0=off)</td></tr>
+    <tr><td class="muted">Auto export interval</td><td>{{ auto_export_hours }} hours check; once per UTC day (0=off)</td></tr>
+  </tbody>
+</table>
+
+<h2 style="margin-top:1.5rem">Listening</h2>
+<p class="muted"><code>{{ listening | join(', ') or 'none' }}</code></p>
+
+<h2 style="margin-top:1.5rem">Recent JSONL files</h2>
+<ul class="muted">
+  {% for f in disk.jsonl_files %}
+    <li><code>{{ f }}</code></li>
+  {% else %}
+    <li>No JSONL yet</li>
+  {% endfor %}
+</ul>
+{% endblock %}

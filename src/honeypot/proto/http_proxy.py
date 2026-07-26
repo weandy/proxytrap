@@ -148,10 +148,15 @@ async def handle_http_proxy(
             return hdr.encode("ascii", errors="replace") + body
 
         def build_fail_after_fake_auth() -> bytes:
-            # L2: claim auth ok path is not given; for CONNECT return 503/502 without tunnel
-            code = 503
-            reason = "Service Unavailable"
-            body = b"Upstream unavailable\n"
+            # L2: never open a tunnel; CONNECT-style clients get 502, others 403
+            if method == "CONNECT":
+                code = 502
+                reason = "Bad Gateway"
+                body = b"Upstream unavailable\n"
+            else:
+                code = 403
+                reason = "Forbidden"
+                body = b"Proxy access denied\n"
             hdr = (
                 f"HTTP/1.1 {code} {reason}\r\n"
                 f"Server: {server}\r\n"
