@@ -74,6 +74,7 @@ if command -v rsync >/dev/null 2>&1; then
     --exclude '.venv/' --exclude 'venv/' --exclude 'data/' \
     --exclude '.git/' --exclude '__pycache__/' --exclude '*.pyc' \
     --exclude '.pytest_cache/' --exclude 'src/proxy_honeypot.egg-info/' \
+    --exclude 'src/*.egg-info/' \
     "${REPO_ROOT}/" "${INSTALL_DIR}/"
 else
   # fallback: tar pipe
@@ -83,12 +84,20 @@ else
     -cf - . | tar -C "${INSTALL_DIR}" -xf -
 fi
 
-# Python venv + install
+# rsync/tar as root → must chown BEFORE creating venv as honeypot user
+info "修正目录属主为 ${HONEYPOT_USER} ..."
+chown -R "${HONEYPOT_USER}:${HONEYPOT_USER}" "${INSTALL_DIR}" "${DATA_DIR}"
+
+# Python venv + install (as honeypot; never root-owned .venv)
 info "创建 venv 并安装包..."
+# drop broken half-created venv from a previous failed run
+if [[ -d "${INSTALL_DIR}/.venv" ]] && [[ ! -x "${INSTALL_DIR}/.venv/bin/python" ]]; then
+  warn "发现不完整的 .venv，删除后重建"
+  rm -rf "${INSTALL_DIR}/.venv"
+fi
 if [[ ! -d "${INSTALL_DIR}/.venv" ]]; then
   sudo -u "${HONEYPOT_USER}" python3 -m venv "${INSTALL_DIR}/.venv"
 fi
-# shellcheck disable=SC1091
 sudo -u "${HONEYPOT_USER}" "${INSTALL_DIR}/.venv/bin/pip" install -U pip wheel -q
 sudo -u "${HONEYPOT_USER}" "${INSTALL_DIR}/.venv/bin/pip" install -e "${INSTALL_DIR}" -q
 
