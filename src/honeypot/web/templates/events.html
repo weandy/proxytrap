@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Events · Proxy Honeypot{% endblock %}
+{% block content %}
+<h1>Recent events</h1>
+<table>
+  <thead>
+    <tr>
+      <th>Time</th><th>Type</th><th>IP</th><th>Port</th><th>Proto</th><th>Method</th><th>User</th><th>Pass</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for e in items %}
+    <tr>
+      <td class="muted">{{ e.ts }}</td>
+      <td>{{ e.event_type }}</td>
+      <td>{{ e.src_ip }}</td>
+      <td>{{ e.dst_port }}</td>
+      <td>{{ e.detected_protocol }}</td>
+      <td class="muted">{{ e.http_method or '' }}</td>
+      <td><code>{{ e.username or '' }}</code></td>
+      <td><code>{{ e.password or '' }}</code></td>
+    </tr>
+  {% else %}
+    <tr><td colspan="8" class="muted">Empty</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

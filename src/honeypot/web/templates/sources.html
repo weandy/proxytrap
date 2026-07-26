@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Sources · Proxy Honeypot{% endblock %}
+{% block content %}
+<h1>Sources (IPs)</h1>
+<table>
+  <thead>
+    <tr>
+      <th>IP</th><th>Connects</th><th>Auths</th><th>Ports</th><th>Protocols</th><th>Last user</th><th>Last pass</th><th>Last seen</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for s in items %}
+    <tr>
+      <td><code>{{ s.src_ip }}</code></td>
+      <td>{{ s.conn_count }}</td>
+      <td>{{ s.auth_count }}</td>
+      <td class="muted"><code>{{ s.ports_json }}</code></td>
+      <td class="muted"><code>{{ s.protocols_json }}</code></td>
+      <td><code>{{ s.last_username or '' }}</code></td>
+      <td><code>{{ s.last_password or '' }}</code></td>
+      <td class="muted">{{ s.last_seen }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="8" class="muted">Empty</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

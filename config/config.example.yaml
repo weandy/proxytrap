@@ -1,0 +1,34 @@
+# Initial honeypot ports. Runtime additions go to SQLite and merge on startup.
+# primary: socks5 | http_proxy
+# also_accept: list of alternate protocols accepted via first-byte detect
+
+deception:
+  auth_mode: always_fail   # always_fail | accept_then_fail
+  http:
+    server_header: "squid/5.8"
+    realm: "Proxy Authentication Required"
+    reject_status: 407
+  socks5:
+    prefer_userpass: true
+    connect_reply: connection_refused
+
+ports:
+  - { port: 1080,  primary: socks5,     also_accept: [http_proxy], enabled: true }
+  - { port: 1081,  primary: socks5,     also_accept: [http_proxy], enabled: true }
+  - { port: 10801, primary: socks5,     also_accept: [http_proxy], enabled: true }
+  - { port: 10808, primary: socks5,     also_accept: [http_proxy], enabled: true }
+  - { port: 10809, primary: socks5,     also_accept: [http_proxy], enabled: true }
+  - { port: 9050,  primary: socks5,     also_accept: [http_proxy], enabled: true }
+  - { port: 3128,  primary: http_proxy, also_accept: [socks5],     enabled: true }
+  - { port: 8888,  primary: http_proxy, also_accept: [socks5],     enabled: true }
+  - { port: 7890,  primary: http_proxy, also_accept: [socks5],     enabled: true }
+  - { port: 7891,  primary: http_proxy, also_accept: [socks5],     enabled: true }
+  - { port: 2080,  primary: http_proxy, also_accept: [socks5],     enabled: true }
+  - { port: 3080,  primary: http_proxy, also_accept: [socks5],     enabled: true }
+  - { port: 32080, primary: http_proxy, also_accept: [socks5],     enabled: true }
+  - { port: 7777,  primary: http_proxy, also_accept: [socks5],     enabled: true }
+  - { port: 20001, primary: http_proxy, also_accept: [socks5],     enabled: true }
+  - { port: 20002, primary: http_proxy, also_accept: [socks5],     enabled: true }
+  - { port: 20003, primary: http_proxy, also_accept: [socks5],     enabled: true }
+  - { port: 20201, primary: http_proxy, also_accept: [socks5],     enabled: true }
+  - { port: 20202, primary: http_proxy, also_accept: [socks5],     enabled: true }

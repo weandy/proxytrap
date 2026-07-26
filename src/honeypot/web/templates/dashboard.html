@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · Proxy Honeypot{% endblock %}
+{% block content %}
+<h1>Dashboard</h1>
+<div class="cards">
+  <div class="card"><div class="label">Connects (24h)</div><div class="value">{{ day.connects }}</div></div>
+  <div class="card"><div class="label">Auths (24h)</div><div class="value">{{ day.auths }}</div></div>
+  <div class="card"><div class="label">Unique IPs (24h)</div><div class="value">{{ day.unique_ips }}</div></div>
+  <div class="card"><div class="label">Creds touched (24h)</div><div class="value">{{ day.credentials }}</div></div>
+  <div class="card"><div class="label">Auths (7d)</div><div class="value">{{ week.auths }}</div></div>
+  <div class="card"><div class="label">Auths (all)</div><div class="value">{{ all_time.auths }}</div></div>
+  <div class="card"><div class="label">Queue / written</div><div class="value">{{ pipeline.queue_size }} / {{ pipeline.written }}</div></div>
+  <div class="card"><div class="label">Live conns</div><div class="value">{{ limiter.global }}</div></div>
+</div>
+
+<h2>Listening ports</h2>
+<table>
+  <thead><tr><th>Port</th><th>Primary</th><th>Also</th><th>Status</th></tr></thead>
+  <tbody>
+  {% for p in ports %}
+    <tr>
+      <td><code>{{ p.port }}</code></td>
+      <td>{{ p.primary }}</td>
+      <td class="muted">{{ p.also_accept | join(', ') }}</td>
+      <td>{% if p.listening %}<span class="ok">listening</span>{% elif p.enabled %}<span class="bad">enabled but not listening</span>{% else %}<span class="muted">disabled</span>{% endif %}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="4" class="muted">No ports configured</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2 style="margin-top:1.5rem">Recent auth</h2>
+<table>
+  <thead>
+    <tr><th>Time</th><th>IP</th><th>Port</th><th>Proto</th><th>User</th><th>Pass</th></tr>
+  </thead>
+  <tbody>
+  {% for e in recent_auth %}
+    <tr>
+      <td class="muted">{{ e.ts }}</td>
+      <td>{{ e.src_ip }}</td>
+      <td>{{ e.dst_port }}</td>
+      <td>{{ e.detected_protocol }}</td>
+      <td><code>{{ e.username }}</code></td>
+      <td><code>{{ e.password }}</code></td>
+    </tr>
+  {% else %}
+    <tr><td colspan="6" class="muted">No auth events yet</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

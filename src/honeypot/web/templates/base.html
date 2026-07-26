@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}Proxy Honeypot{% endblock %}</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --card: #1a2332;
+      --text: #e7ecf3;
+      --muted: #8b9bb4;
+      --accent: #3d8bfd;
+      --danger: #f07178;
+      --ok: #7fd962;
+      --border: #2a3548;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      background: #121a24;
+      position: sticky;
+      top: 0;
+    }
+    nav a { margin-right: 1rem; color: var(--muted); }
+    nav a:hover { color: var(--text); }
+    main { padding: 1.25rem; max-width: 1200px; margin: 0 auto; }
+    h1 { font-size: 1.35rem; margin: 0 0 1rem; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.9rem;
+    }
+    .card .label { color: var(--muted); font-size: 0.8rem; }
+    .card .value { font-size: 1.4rem; font-weight: 600; margin-top: 0.25rem; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      font-size: 0.9rem;
+    }
+    th, td { padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; background: #152032; }
+    tr:last-child td { border-bottom: none; }
+    .muted { color: var(--muted); }
+    .ok { color: var(--ok); }
+    .bad { color: var(--danger); }
+    .flash { padding: 0.6rem 0.8rem; border-radius: 8px; margin-bottom: 1rem; }
+    .flash.error { background: #3a1d22; color: #ffb4b4; }
+    .flash.ok { background: #1d3a24; color: #b6f0c0; }
+    form.inline { display: inline; }
+    input, select, button {
+      background: #0f1722;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.45rem 0.65rem;
+    }
+    button, .btn {
+      background: var(--accent);
+      border: none;
+      color: #fff;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button.secondary { background: #2a3548; }
+    .login-wrap {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .login-box {
+      width: min(360px, 92vw);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+    }
+    .login-box label { display: block; margin: 0.75rem 0 0.3rem; color: var(--muted); font-size: 0.85rem; }
+    .login-box input { width: 100%; }
+    .login-box button { width: 100%; margin-top: 1rem; padding: 0.65rem; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.85em; }
+  </style>
+</head>
+<body>
+{% block body %}
+  <header>
+    <nav>
+      <a href="/">Dashboard</a>
+      <a href="/credentials">Credentials</a>
+      <a href="/sources">Sources</a>
+      <a href="/events">Events</a>
+      <a href="/ports">Ports</a>
+    </nav>
+    <div class="muted">{{ user }} · <a href="/logout">Logout</a></div>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+{% endblock %}
+</body>
+</html>
