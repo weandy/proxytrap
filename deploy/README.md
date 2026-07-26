@@ -1,5 +1,23 @@
 # Deploy on Linux (systemd)
 
+## 一键安装（推荐）
+
+在仓库根目录：
+
+```bash
+sudo bash deploy/install.sh
+```
+
+脚本会：安装 Python 依赖 → 创建 `honeypot` 用户 → 同步到 `/opt/proxy-honeypot` → venv + `pip install -e .` → 生成带随机密码的 `.env` → 安装并启动 `proxy-honeypot.service`。
+
+可选环境变量：`INSTALL_DIR` `DATA_DIR` `WEB_BIND` `WEB_USER` `SKIP_START` `HONEYPOT_USER`。
+
+更多说明见仓库根目录 [README.md](../README.md)「一键部署」一节。
+
+---
+
+## 手工步骤
+
 ## 1. User and paths
 
 ```bash

@@ -18,7 +18,7 @@ Persists events to **daily JSONL** + **SQLite** aggregates, optional **Web UI** 
 | Web | Dashboard, credentials, sources, events, ports, **system/disk** |
 | Ops | Retention, `reindex`, `disk`, auto daily export, stale-auth warning, `/healthz` |
 | AI | Web **AI**: smart base URL, multi-compat **OpenAI chat / Responses / Claude**, auto-detect, chat + presets; config → `data/ai_settings.json` |
-| Deploy | `deploy/proxy-honeypot.service`, `scripts/backup.sh` / `.ps1` |
+| Deploy | **一键** `deploy/install.sh`（Linux）/ `install.ps1`（Windows 开发）, systemd, backup scripts |
 
 ## Quick start (dev)
 
@@ -51,17 +51,83 @@ python -m honeypot disk
 pytest -q
 ```
 
-## Production deploy
+## 一键部署（推荐 · Linux 服务器）
 
-See **[deploy/README.md](deploy/README.md)** and **[docs/deploy-cloud.md](docs/deploy-cloud.md)**.
+适用于 Ubuntu / Debian / 常见云主机（systemd）。在**已克隆的仓库目录**执行：
 
-Short path:
+```bash
+# 1) 上传或克隆代码到服务器后
+cd /path/to/proxy-honeypot   # 或本仓库 miguan
 
-1. Install into `/opt/proxy-honeypot` with venv + `pip install -e .`
-2. Configure `.env` (`DATA_DIR`, strong `WEB_*` secrets; prefer `WEB_BIND=127.0.0.1:8787`)
-3. Install `deploy/proxy-honeypot.service` → `systemctl enable --now proxy-honeypot`
-4. Open honeypot ports on the security group; **restrict Web and SSH**
-5. Cron or manual: `scripts/backup.sh`
+# 2) 一键安装（自动：依赖、用户、venv、.env 随机密码、systemd、启动）
+sudo bash deploy/install.sh
+```
+
+装完脚本会打印 **Web 地址 / 用户名 / 随机密码**。默认：
+
+| 项 | 默认 |
+|----|------|
+| 安装目录 | `/opt/proxy-honeypot` |
+| 数据目录 | `/var/lib/proxy-honeypot` |
+| Web | `0.0.0.0:8787`（可用环境变量改） |
+| 服务名 | `proxy-honeypot` |
+
+### 常用可选参数
+
+```bash
+# Web 仅本机（更安全，配合 SSH 隧道）
+sudo WEB_BIND=127.0.0.1:8787 bash deploy/install.sh
+
+# 自定义路径
+sudo INSTALL_DIR=/opt/miguan DATA_DIR=/data/miguan bash deploy/install.sh
+
+# 只安装不启动
+sudo SKIP_START=1 bash deploy/install.sh
+```
+
+### 装完后
+
+```bash
+# 状态 / 日志
+systemctl status proxy-honeypot
+journalctl -u proxy-honeypot -f
+
+# 本机健康检查
+curl -s http://127.0.0.1:8787/healthz
+
+# 备份
+sudo -u honeypot bash /opt/proxy-honeypot/scripts/backup.sh
+```
+
+浏览器打开 `http://<服务器IP>:8787` → 用安装输出的账号密码登录 → **Ports / AI** 按需配置。
+
+**云安全组：**
+
+- 蜜罐代理端口（1080、3128、7890…）：可对 `0.0.0.0/0`
+- **Web 8787 / SSH：只放行你的办公 IP**（或 Web 绑 `127.0.0.1` + SSH 隧道）
+
+> 本服务**永不转发**流量，不是开放代理。说明见 [docs/deploy-cloud.md](docs/deploy-cloud.md)。
+
+### 从 Git 拉代码再一键装（示例）
+
+```bash
+git clone <你的仓库URL> proxy-honeypot
+cd proxy-honeypot
+sudo bash deploy/install.sh
+```
+
+### Windows 本机一键准备（开发）
+
+```powershell
+# 仓库根目录
+.\deploy\install.ps1
+.\.venv\Scripts\python.exe -m honeypot run
+# 浏览器 http://127.0.0.1:8787
+```
+
+### 手工部署（逐步）
+
+详见 **[deploy/README.md](deploy/README.md)**。
 
 ## CLI
 
