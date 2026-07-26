@@ -8,6 +8,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from threading import Lock
 
+from honeypot.ai_compat import PROVIDER_AUTO, smart_normalize_base
+
 log = logging.getLogger(__name__)
 
 DEFAULT_SYSTEM_PROMPT = (
@@ -26,7 +28,10 @@ class AiSettings:
     model: str = ""
     temperature: float = 0.3
     system_prompt: str = DEFAULT_SYSTEM_PROMPT
-    # optional extra headers as list of {name,value} for non-standard gateways
+    # auto | openai | anthropic | openai_responses
+    provider: str = PROVIDER_AUTO
+    # last successful protocol from probe/chat
+    detected_provider: str = ""
     extra_headers: dict[str, str] = field(default_factory=dict)
 
     def normalized_base_url(self) -> str:
@@ -54,6 +59,8 @@ class AiSettings:
             "model": self.model,
             "temperature": self.temperature,
             "system_prompt": self.system_prompt,
+            "provider": self.provider or PROVIDER_AUTO,
+            "detected_provider": self.detected_provider or "",
             "extra_headers": self.extra_headers,
             "ready": self.is_ready(),
         }
@@ -80,10 +87,15 @@ class AiSettingsStore:
                 model=str(data.get("model") or ""),
                 temperature=float(data.get("temperature") if data.get("temperature") is not None else 0.3),
                 system_prompt=str(data.get("system_prompt") or DEFAULT_SYSTEM_PROMPT),
+                provider=str(data.get("provider") or PROVIDER_AUTO),
+                detected_provider=str(data.get("detected_provider") or ""),
                 extra_headers=dict(data.get("extra_headers") or {}),
             )
 
     def save(self, settings: AiSettings) -> None:
+        # always store smart-normalized base
+        norm = smart_normalize_base(settings.base_url, provider=settings.provider or PROVIDER_AUTO)
+        settings.base_url = norm.base_url
         with self._lock:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             tmp = self.path.with_suffix(".tmp")
@@ -102,9 +114,7 @@ class AiSettingsStore:
             if not new_key:
                 if not keep_key_if_blank:
                     current.api_key = ""
-                # else keep existing key
             elif new_key.startswith("*") and current.api_key:
-                # masked display value posted back — keep existing
                 pass
             else:
                 current.api_key = new_key
@@ -117,6 +127,14 @@ class AiSettingsStore:
                 pass
         if "system_prompt" in body and body["system_prompt"] is not None:
             current.system_prompt = str(body["system_prompt"])
+        if "provider" in body and body["provider"] is not None:
+            p = str(body["provider"]).strip().lower() or PROVIDER_AUTO
+            if p in ("auto", "openai", "anthropic", "openai_responses", "claude"):
+                if p == "claude":
+                    p = "anthropic"
+                current.provider = p
+        if "detected_provider" in body and body["detected_provider"] is not None:
+            current.detected_provider = str(body["detected_provider"])
         if "extra_headers" in body and isinstance(body["extra_headers"], dict):
             current.extra_headers = {str(k): str(v) for k, v in body["extra_headers"].items()}
         self.save(current)

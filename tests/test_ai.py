@@ -121,8 +121,8 @@ async def test_fetch_models_and_chat_mocked():
         post = staticmethod(fake_post)
 
     with patch("honeypot.ai_client.httpx.AsyncClient", return_value=FakeClient()):
-        models = await fetch_models(cfg)
-        assert [m["id"] for m in models] == ["alpha", "beta"]
+        result = await fetch_models(cfg)
+        assert [m["id"] for m in result["models"]] == ["alpha", "beta"]
         out = await chat_completion(cfg, [{"role": "user", "content": "hi"}])
         assert out["content"] == "hello"
 
@@ -192,13 +192,24 @@ async def test_ai_api_requires_login_and_saves(tmp_path: Path):
         assert "sk-test-abc" not in r2.json()["settings"]["api_key"]
 
         with patch("honeypot.web.app.fetch_models", new_callable=AsyncMock) as fm:
-            fm.return_value = [{"id": "demo"}, {"id": "other"}]
+            fm.return_value = {
+                "models": [{"id": "demo"}, {"id": "other"}],
+                "provider": "openai",
+                "base_url": "https://x/v1",
+                "notes": ["models via openai"],
+            }
             r3 = await client.post("/api/ai/models", json={})
             assert r3.status_code == 200
             assert r3.json()["count"] == 2
+            assert r3.json()["provider"] == "openai"
 
         with patch("honeypot.web.app.chat_completion", new_callable=AsyncMock) as cc:
-            cc.return_value = {"content": "ok-analysis", "model": "demo", "usage": {}}
+            cc.return_value = {
+                "content": "ok-analysis",
+                "model": "demo",
+                "usage": {},
+                "provider": "openai",
+            }
             r4 = await client.post(
                 "/api/ai/chat",
                 json={"message": "总结一下", "include_data": True},

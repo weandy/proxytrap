@@ -17,7 +17,7 @@ Persists events to **daily JSONL** + **SQLite** aggregates, optional **Web UI** 
 | Storage | `data/raw/events-YYYY-MM-DD.jsonl` + `data/honeypot.db` |
 | Web | Dashboard, credentials, sources, events, ports, **system/disk** |
 | Ops | Retention, `reindex`, `disk`, auto daily export, stale-auth warning, `/healthz` |
-| AI | Web **AI** page: custom base URL / API key / model (fetch list), chat + preset analysis with live honeypot snapshot; config → `data/ai_settings.json` |
+| AI | Web **AI**: smart base URL, multi-compat **OpenAI chat / Responses / Claude**, auto-detect, chat + presets; config → `data/ai_settings.json` |
 | Deploy | `deploy/proxy-honeypot.service`, `scripts/backup.sh` / `.ps1` |
 
 ## Quick start (dev)

@@ -2,32 +2,45 @@
 {% block title %}AI 分析 · Proxy Honeypot{% endblock %}
 {% block content %}
 <h1>AI 对话与数据分析</h1>
-<p class="muted">配置保存在服务器 <code>DATA_DIR/ai_settings.json</code>（不进 .env）。API Key 仅服务端持有。兼容 OpenAI 风格 <code>/v1/models</code> 与 <code>/v1/chat/completions</code>。</p>
+<p class="muted">
+  配置保存在 <code>DATA_DIR/ai_settings.json</code>。Base URL <strong>智能补全</strong>（自动 https、补 <code>/v1</code>、去掉误粘贴的路径）。
+  协议 <strong>自探测</strong>：OpenAI <code>chat/completions</code> → 必要时 <code>responses</code> → Anthropic <code>messages</code>（Claude）。
+  默认按 <strong>GPT / OpenAI 兼容</strong>优先。
+</p>
 
 <div class="cards" style="margin-bottom:1rem">
   <div class="card"><div class="label">状态</div><div class="value" style="font-size:1rem" id="ai-ready">{% if ai.ready %}<span class="ok">就绪</span>{% else %}<span class="bad">未就绪</span>{% endif %}</div></div>
   <div class="card"><div class="label">当前模型</div><div class="value" style="font-size:0.95rem" id="ai-model-label">{{ ai.model or '—' }}</div></div>
+  <div class="card"><div class="label">协议</div><div class="value" style="font-size:0.9rem" id="ai-provider-label">{{ ai.detected_provider or ai.provider or 'auto' }}</div></div>
 </div>
 
 <section class="card" style="margin-bottom:1.25rem; padding:1rem; border:1px solid var(--border); border-radius:10px; background:var(--card)">
   <h2 style="margin-top:0;font-size:1.1rem">模型与端点配置</h2>
   <div style="display:grid; gap:0.65rem; max-width:720px">
     <label class="muted">启用 AI <input type="checkbox" id="cfg-enabled" {% if ai.enabled %}checked{% endif %} /></label>
-    <label class="muted">API Base URL（需含 /v1）
-      <input id="cfg-base" style="width:100%" value="{{ ai.base_url }}" placeholder="https://api.openai.com/v1" />
+    <label class="muted">协议模式
+      <select id="cfg-provider" style="width:100%">
+        <option value="auto" {% if ai.provider == 'auto' or not ai.provider %}selected{% endif %}>auto（自探测，GPT 优先）</option>
+        <option value="openai" {% if ai.provider == 'openai' %}selected{% endif %}>openai — chat/completions</option>
+        <option value="openai_responses" {% if ai.provider == 'openai_responses' %}selected{% endif %}>openai_responses — /v1/responses</option>
+        <option value="anthropic" {% if ai.provider == 'anthropic' %}selected{% endif %}>anthropic — Claude messages</option>
+      </select>
+    </label>
+    <label class="muted">API Base URL（可只写域名，会自动补全）
+      <input id="cfg-base" style="width:100%" value="{{ ai.base_url }}" placeholder="api.openai.com 或 https://xxx.com 或 api.anthropic.com" />
     </label>
     <label class="muted">API Key（留空保存则不修改已有 Key）
-      <input id="cfg-key" type="password" style="width:100%" value="" placeholder="{% if ai.api_key_set %}已保存 {{ ai.api_key }}{% else %}sk-...{% endif %}" autocomplete="off" />
+      <input id="cfg-key" type="password" style="width:100%" value="" placeholder="{% if ai.api_key_set %}已保存 {{ ai.api_key }}{% else %}sk-... / sk-ant-...{% endif %}" autocomplete="off" />
     </label>
     <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:end">
       <label class="muted" style="flex:1;min-width:200px">模型
-        <input id="cfg-model" style="width:100%" list="model-list" value="{{ ai.model }}" placeholder="gpt-4o-mini" />
+        <input id="cfg-model" style="width:100%" list="model-list" value="{{ ai.model }}" placeholder="gpt-4o-mini / claude-sonnet-4-..." />
         <datalist id="model-list"></datalist>
       </label>
       <label class="muted">温度
         <input id="cfg-temp" type="number" step="0.1" min="0" max="2" value="{{ ai.temperature }}" style="width:5rem" />
       </label>
-      <button type="button" class="secondary" id="btn-fetch-models">拉取模型列表</button>
+      <button type="button" class="secondary" id="btn-fetch-models">拉取并探测</button>
       <button type="button" id="btn-save">保存配置</button>
     </div>
     <label class="muted">System Prompt
@@ -64,9 +77,17 @@ function appendMsg(role, text) {
   box.appendChild(div);
   box.scrollTop = box.scrollHeight;
 }
+function applySettingsView(s) {
+  if (!s) return;
+  document.getElementById('ai-ready').innerHTML = s.ready ? '<span class="ok">就绪</span>' : '<span class="bad">未就绪</span>';
+  document.getElementById('ai-model-label').textContent = s.model || '—';
+  document.getElementById('ai-provider-label').textContent = (s.detected_provider || s.provider || 'auto');
+  if (s.base_url) document.getElementById('cfg-base').value = s.base_url;
+}
 async function saveCfg() {
   const body = {
     enabled: document.getElementById('cfg-enabled').checked,
+    provider: document.getElementById('cfg-provider').value,
     base_url: document.getElementById('cfg-base').value.trim(),
     api_key: document.getElementById('cfg-key').value.trim(),
     model: document.getElementById('cfg-model').value.trim(),
@@ -79,19 +100,20 @@ async function saveCfg() {
   const j = await r.json();
   const msg = document.getElementById('cfg-msg');
   if (!r.ok) { msg.textContent = j.detail || '保存失败'; msg.className = 'bad'; return; }
-  msg.textContent = '已保存 · ready=' + j.settings.ready;
+  msg.textContent = '已保存 · base=' + (j.normalized_base_url || j.settings.base_url) + ' · ready=' + j.settings.ready;
   msg.className = 'ok';
-  document.getElementById('ai-ready').innerHTML = j.settings.ready ? '<span class="ok">就绪</span>' : '<span class="bad">未就绪</span>';
-  document.getElementById('ai-model-label').textContent = j.settings.model || '—';
+  applySettingsView(j.settings);
   document.getElementById('cfg-key').value = '';
   document.getElementById('cfg-key').placeholder = j.settings.api_key_set ? ('已保存 ' + j.settings.api_key) : 'sk-...';
+  if (j.settings.provider) document.getElementById('cfg-provider').value = j.settings.provider;
 }
 async function fetchModels() {
   const msg = document.getElementById('cfg-msg');
-  msg.textContent = '拉取中…';
+  msg.textContent = '拉取并自探测中…';
   const body = {
     base_url: document.getElementById('cfg-base').value.trim(),
     api_key: document.getElementById('cfg-key').value.trim() || undefined,
+    provider: document.getElementById('cfg-provider').value,
   };
   const r = await fetch('/api/ai/models', {
     method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
@@ -105,7 +127,10 @@ async function fetchModels() {
     o.value = m.id;
     dl.appendChild(o);
   });
-  msg.textContent = '已拉取 ' + j.count + ' 个模型，可在模型框下拉选择';
+  if (j.base_url) document.getElementById('cfg-base').value = j.base_url;
+  if (j.provider) document.getElementById('ai-provider-label').textContent = j.provider;
+  msg.textContent = '协议=' + (j.provider || '?') + ' · 模型 ' + j.count + ' 个' +
+    (j.notes && j.notes.length ? ' · ' + j.notes.join('; ') : '');
   msg.className = 'ok';
 }
 async function sendChat(text) {
@@ -128,8 +153,10 @@ async function sendChat(text) {
     document.getElementById('chat-status').textContent = '';
     return;
   }
-  appendMsg('AI' + (j.model ? ' (' + j.model + ')' : ''), j.content || '');
+  const tag = (j.provider ? j.provider + ' / ' : '') + (j.model || '');
+  appendMsg('AI' + (tag ? ' (' + tag + ')' : ''), j.content || '');
   history.push({role: 'assistant', content: j.content || ''});
+  if (j.provider) document.getElementById('ai-provider-label').textContent = j.provider;
   document.getElementById('chat-status').textContent = j.usage ? JSON.stringify(j.usage) : '';
 }
 async function runPreset(key) {
@@ -143,9 +170,11 @@ async function runPreset(key) {
   if (!r.ok) {
     appendMsg('错误', typeof j.detail === 'string' ? j.detail : JSON.stringify(j.detail));
   } else {
-    appendMsg('AI' + (j.model ? ' (' + j.model + ')' : ''), j.content || '');
+    const tag = (j.provider ? j.provider + ' / ' : '') + (j.model || '');
+    appendMsg('AI' + (tag ? ' (' + tag + ')' : ''), j.content || '');
     history.push({role: 'user', content: '[preset:' + key + ']'});
     history.push({role: 'assistant', content: j.content || ''});
+    if (j.provider) document.getElementById('ai-provider-label').textContent = j.provider;
   }
   document.getElementById('chat-status').textContent = '';
 }

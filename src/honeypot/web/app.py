@@ -356,21 +356,42 @@ def create_app(
         require_login(request)
         body = await request.json()
         saved = ai_store.update_from_payload(body)
-        return {"ok": True, "settings": saved.public_dict(mask_key=True)}
+        return {
+            "ok": True,
+            "settings": saved.public_dict(mask_key=True),
+            "normalized_base_url": saved.base_url,
+        }
 
     @app.post("/api/ai/models")
     async def api_ai_models(request: Request) -> Any:
         require_login(request)
         body = await request.json() if request.headers.get("content-type", "").startswith("application/json") else {}
         cfg = ai_store.load()
-        # allow one-shot override without save
+        # allow one-shot override without permanent save of secrets unless full save
         if body.get("base_url"):
             cfg.base_url = str(body["base_url"]).strip()
         if body.get("api_key") and not str(body["api_key"]).startswith("*"):
             cfg.api_key = str(body["api_key"]).strip()
+        if body.get("provider"):
+            cfg.provider = str(body["provider"]).strip().lower()
         try:
-            models = await fetch_models(cfg)
-            return {"models": models, "count": len(models)}
+            result = await fetch_models(cfg)
+            # persist detection + normalized base when config already on disk
+            persisted = ai_store.load()
+            persisted.base_url = result.get("base_url") or cfg.base_url
+            if result.get("provider"):
+                persisted.detected_provider = str(result["provider"])
+            if cfg.api_key and not persisted.api_key:
+                persisted.api_key = cfg.api_key
+            ai_store.save(persisted)
+            models = result.get("models") or []
+            return {
+                "models": models,
+                "count": len(models),
+                "provider": result.get("provider"),
+                "base_url": result.get("base_url"),
+                "notes": result.get("notes") or [],
+            }
         except AiClientError as e:
             raise HTTPException(status_code=e.status_code or 502, detail=str(e)) from e
 
@@ -418,10 +439,14 @@ def create_app(
             result = await chat_completion(cfg, messages)
         except AiClientError as e:
             raise HTTPException(status_code=e.status_code or 502, detail=str(e)) from e
+        if result.get("provider"):
+            cfg.detected_provider = str(result["provider"])
+            ai_store.save(cfg)
         return {
             "content": result["content"],
             "model": result.get("model"),
             "usage": result.get("usage"),
+            "provider": result.get("provider"),
             "included_data": include_data,
         }
 
@@ -449,11 +474,15 @@ def create_app(
             result = await chat_completion(cfg, messages)
         except AiClientError as e:
             raise HTTPException(status_code=e.status_code or 502, detail=str(e)) from e
+        if result.get("provider"):
+            cfg.detected_provider = str(result["provider"])
+            ai_store.save(cfg)
         return {
             "content": result["content"],
             "model": result.get("model"),
             "preset": preset,
             "usage": result.get("usage"),
+            "provider": result.get("provider"),
         }
 
     @app.get("/healthz")
