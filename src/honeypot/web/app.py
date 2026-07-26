@@ -11,6 +11,9 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 from honeypot import __version__
+from honeypot.ai_client import AiClientError, chat_completion, fetch_models
+from honeypot.ai_context import PRESET_PROMPTS, build_analysis_context, context_as_prompt_block
+from honeypot.ai_settings import AiSettings, AiSettingsStore
 from honeypot.config import Settings
 from honeypot.limits import ConnectionLimiter
 from honeypot.ops import disk_usage_report
@@ -48,6 +51,7 @@ def create_app(
         max_failures=settings.web_login_max_failures,
         ban_minutes=settings.web_login_ban_minutes,
     )
+    ai_store = AiSettingsStore(settings.data_dir / "ai_settings.json")
 
     def client_ip(request: Request) -> str:
         if request.client:
@@ -324,6 +328,133 @@ def create_app(
             return {"port": port, "enabled": False}
         except Exception as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
+
+    # --- AI settings + chat (config persisted in DATA_DIR/ai_settings.json) ---
+
+    @app.get("/ai", response_class=HTMLResponse)
+    async def ai_page(request: Request) -> Any:
+        if not logged_in(request):
+            return RedirectResponse("/login", status_code=302)
+        ai = ai_store.load()
+        return templates.TemplateResponse(
+            request,
+            "ai.html",
+            {
+                "user": request.session.get("user"),
+                "ai": ai.public_dict(mask_key=True),
+                "presets": PRESET_PROMPTS,
+            },
+        )
+
+    @app.get("/api/ai/settings")
+    async def api_ai_settings_get(request: Request) -> Any:
+        require_login(request)
+        return ai_store.load().public_dict(mask_key=True)
+
+    @app.post("/api/ai/settings")
+    async def api_ai_settings_save(request: Request) -> Any:
+        require_login(request)
+        body = await request.json()
+        saved = ai_store.update_from_payload(body)
+        return {"ok": True, "settings": saved.public_dict(mask_key=True)}
+
+    @app.post("/api/ai/models")
+    async def api_ai_models(request: Request) -> Any:
+        require_login(request)
+        body = await request.json() if request.headers.get("content-type", "").startswith("application/json") else {}
+        cfg = ai_store.load()
+        # allow one-shot override without save
+        if body.get("base_url"):
+            cfg.base_url = str(body["base_url"]).strip()
+        if body.get("api_key") and not str(body["api_key"]).startswith("*"):
+            cfg.api_key = str(body["api_key"]).strip()
+        try:
+            models = await fetch_models(cfg)
+            return {"models": models, "count": len(models)}
+        except AiClientError as e:
+            raise HTTPException(status_code=e.status_code or 502, detail=str(e)) from e
+
+    @app.post("/api/ai/chat")
+    async def api_ai_chat(request: Request) -> Any:
+        require_login(request)
+        body = await request.json()
+        cfg = ai_store.load()
+        if not cfg.is_ready():
+            raise HTTPException(
+                status_code=400,
+                detail="AI 未配置完整：请在页面保存 endpoint / API Key / 模型，并启用 AI",
+            )
+        user_msg = str(body.get("message") or "").strip()
+        if not user_msg:
+            raise HTTPException(status_code=400, detail="message required")
+        include_data = bool(body.get("include_data", True))
+        history = body.get("history") or []
+        messages: list[dict[str, str]] = [
+            {"role": "system", "content": cfg.system_prompt or AiSettings().system_prompt},
+        ]
+        if include_data:
+            ctx = build_analysis_context(
+                store,
+                settings.data_dir,
+                listening=server.listening_ports(),
+                auth_mode=settings.effective_auth_mode.value,
+            )
+            messages.append(
+                {
+                    "role": "system",
+                    "content": context_as_prompt_block(ctx),
+                }
+            )
+        if isinstance(history, list):
+            for h in history[-20:]:
+                if not isinstance(h, dict):
+                    continue
+                role = h.get("role")
+                content = h.get("content")
+                if role in ("user", "assistant") and content:
+                    messages.append({"role": role, "content": str(content)[:8000]})
+        messages.append({"role": "user", "content": user_msg[:12000]})
+        try:
+            result = await chat_completion(cfg, messages)
+        except AiClientError as e:
+            raise HTTPException(status_code=e.status_code or 502, detail=str(e)) from e
+        return {
+            "content": result["content"],
+            "model": result.get("model"),
+            "usage": result.get("usage"),
+            "included_data": include_data,
+        }
+
+    @app.post("/api/ai/analyze")
+    async def api_ai_analyze(request: Request) -> Any:
+        require_login(request)
+        body = await request.json()
+        preset = str(body.get("preset") or "overview")
+        prompt = PRESET_PROMPTS.get(preset) or str(body.get("message") or PRESET_PROMPTS["overview"])
+        cfg = ai_store.load()
+        if not cfg.is_ready():
+            raise HTTPException(status_code=400, detail="AI 未配置完整")
+        ctx = build_analysis_context(
+            store,
+            settings.data_dir,
+            listening=server.listening_ports(),
+            auth_mode=settings.effective_auth_mode.value,
+        )
+        messages = [
+            {"role": "system", "content": cfg.system_prompt},
+            {"role": "system", "content": context_as_prompt_block(ctx)},
+            {"role": "user", "content": prompt},
+        ]
+        try:
+            result = await chat_completion(cfg, messages)
+        except AiClientError as e:
+            raise HTTPException(status_code=e.status_code or 502, detail=str(e)) from e
+        return {
+            "content": result["content"],
+            "model": result.get("model"),
+            "preset": preset,
+            "usage": result.get("usage"),
+        }
 
     @app.get("/healthz")
     async def healthz() -> Any:

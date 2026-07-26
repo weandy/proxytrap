@@ -2,7 +2,7 @@
 
 SOCKS5 / HTTP **proxy authentication honeypot** for collecting real-world brute-force credentials.
 
-Persists events to **daily JSONL** + **SQLite** aggregates, optional **Web UI** (Session login), **dynamic ports**, credential **export**, and Phase-3 ops (retention, reindex, backup, health).
+Persists events to **daily JSONL** + **SQLite** aggregates, optional **Web UI** (Session login), **dynamic ports**, credential **export**, Phase-3 ops, and **AI chat/analysis** (custom OpenAI-compatible endpoint; settings stored under `DATA_DIR`, not `.env`).
 
 **Never forwards traffic. Not an open proxy. L3 is intentionally unsupported.**
 
@@ -17,6 +17,7 @@ Persists events to **daily JSONL** + **SQLite** aggregates, optional **Web UI** 
 | Storage | `data/raw/events-YYYY-MM-DD.jsonl` + `data/honeypot.db` |
 | Web | Dashboard, credentials, sources, events, ports, **system/disk** |
 | Ops | Retention, `reindex`, `disk`, auto daily export, stale-auth warning, `/healthz` |
+| AI | Web **AI** page: custom base URL / API key / model (fetch list), chat + preset analysis with live honeypot snapshot; config → `data/ai_settings.json` |
 | Deploy | `deploy/proxy-honeypot.service`, `scripts/backup.sh` / `.ps1` |
 
 ## Quick start (dev)
@@ -73,7 +74,8 @@ Short path:
 
 ## Configuration
 
-- **Env**: [.env.example](.env.example) — secrets, retention, Web bind, `AUTH_MODE`
+- **Env (minimal)**: [.env.example](.env.example) — `DATA_DIR` / port YAML path / Web admin password  
+- **AI**: configure in Web → **AI** (endpoint, key, model). Saved to `DATA_DIR/ai_settings.json` (gitignored via `data/`)  
 - **Ports / deception YAML**: [config/config.example.yaml](config/config.example.yaml)
 
 | Env | Meaning |
