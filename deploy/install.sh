@@ -55,8 +55,8 @@ else
 fi
 
 command -v python3 >/dev/null || die "需要 python3"
-python3 -c 'import sys; exit(0 if sys.version_info >= (3,11) else 1)' \
-  || warn "建议 Python ≥ 3.11（当前: $(python3 -V 2>&1)），3.10 可能可用但未保证"
+python3 -c 'import sys; exit(0 if sys.version_info >= (3,10) else 1)' \
+  || die "需要 Python ≥ 3.10（当前: $(python3 -V 2>&1)）"
 
 # System user
 if ! id -u "${HONEYPOT_USER}" >/dev/null 2>&1; then

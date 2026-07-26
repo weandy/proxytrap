@@ -11,7 +11,7 @@ Set-Location $Root
 Write-Host "[+] Repo: $Root"
 
 if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
-  throw "需要 Python 3.11+ 在 PATH 中"
+  throw "需要 Python 3.10+ 在 PATH 中"
 }
 
 if (-not (Test-Path ".venv")) {

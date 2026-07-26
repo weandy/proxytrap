@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "proxytrap"
-version = "0.3.2"
+version = "0.3.3"
 description = "ProxyTrap — SOCKS5/HTTP proxy auth honeypot for credential collection"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = [
   "fastapi>=0.115.0",
   "uvicorn[standard]>=0.32.0",

@@ -13,7 +13,7 @@
 
 ## 技术栈
 
-- Python 3.11+
+- Python 3.10+
 - asyncio 蜜罐监听
 - SQLite + JSONL
 - FastAPI + Session 登录（暂不强制 TLS）
