@@ -111,8 +111,8 @@ sudo -u honeypot bash /opt/proxy-honeypot/scripts/backup.sh
 ### 从 Git 拉代码再一键装（示例）
 
 ```bash
-git clone <你的仓库URL> proxy-honeypot
-cd proxy-honeypot
+git clone https://github.com/weandy/proxy-auth-honeypot.git
+cd proxy-auth-honeypot
 sudo bash deploy/install.sh
 ```
 

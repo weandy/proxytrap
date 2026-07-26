@@ -1,6 +1,6 @@
 [Unit]
 Description=Proxy Auth Honeypot (SOCKS5/HTTP credential trap)
-Documentation=https://github.com/example/proxy-auth-honeypot
+Documentation=https://github.com/weandy/proxy-auth-honeypot
 After=network-online.target
 Wants=network-online.target
 
